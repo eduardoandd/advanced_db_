@@ -1,0 +1,410 @@
+CREATE DATABASE CLINICA_;
+USE CLINICA_;
+
+CREATE TABLE MEDICACAO(
+	 ID_MEDICACAO INT PRIMARY KEY,
+     NOME VARCHAR(50),
+     VALOR FLOAT(10.2)
+);
+
+CREATE TABLE CLIENTE(
+	ID_CLIENTE INT PRIMARY KEY,
+    NOME VARCHAR(50),
+    ID_MEDICACAO INT,
+    CONSTRAINT FK_MEDICAO FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO (ID_MEDICACAO)
+);
+
+CREATE TABLE MEDICACAO_CLIENTE(
+	ID_MEDICACAO INT,
+    ID_CLIENTE INT,
+    
+    PRIMARY KEY(ID_MEDICACAO, ID_CLIENTE),
+    CONSTRAINT FK_MEDICAOS FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO(ID_MEDICACAO),
+    CONSTRAINT FK_CLIENTES FOREIGN KEY (ID_CLIENTE) REFERENCES CLIENTE(ID_CLIENTE)
+);
+
+
+INSERT INTO MEDICACAO (ID_MEDICACAO, NOME, VALOR) VALUES
+(1, 'Paracetamol', 10.50),
+(2, 'Ibuprofeno', 15.75),
+(3, 'Amoxicilina', 25.00),
+(4, 'Cetirizina', 12.30);
+
+
+INSERT INTO CLIENTE (ID_CLIENTE, NOME, ID_MEDICACAO) VALUES
+(1, 'João Silva', 1),
+(2, 'Maria Oliveira', 2),
+(3, 'Ana Santos', NULL),  -- Cliente sem medicação associada
+(4, 'Carlos Pereira', 3);
+
+
+INSERT INTO MEDICACAO_CLIENTE (ID_MEDICACAO, ID_CLIENTE) VALUES
+(1, 1),  -- João Silva e Paracetamol
+(2, 2),  -- Maria Oliveira e Ibuprofeno
+(3, 4),  -- Carlos Pereira e Amoxicilina
+(1, 3);  -- Ana Santos e Paracetamol (caso queira adicionar)
+
+
+DELIMITER $$
+
+CREATE TRIGGER trg_update_valor_medicacao
+AFTER INSERT ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    DECLARE total_valor FLOAT;
+
+    SELECT SUM(VALOR) INTO total_valor
+    FROM MEDICACAO
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+
+    UPDATE MEDICACAO
+    SET VALOR = total_valor
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+END$$
+
+
+DELIMITER $$
+
+CREATE TRIGGER trg_prevent_delete_cliente
+BEFORE DELETE ON CLIENTE
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO_CLIENTE WHERE ID_CLIENTE = OLD.ID_CLIENTE) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Não é possível excluir cliente com medicações associadas.';
+    END IF;
+END$$
+
+CREATE TABLE HISTORICO_MEDICACAO (
+    ID_HISTORICO INT PRIMARY KEY AUTO_INCREMENT,
+    ID_MEDICACAO INT,
+    NOME VARCHAR(50),
+    VALOR FLOAT(10,2),
+    DATA_HORA TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+DELIMITER $$
+CREATE TRIGGER trg_insert_historico_medicacao
+AFTER UPDATE ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    INSERT INTO HISTORICO_MEDICACAO (ID_MEDICACAO, NOME, VALOR)
+    VALUES (OLD.ID_MEDICACAO, OLD.NOME, OLD.VALOR);
+END$$
+
+DELIMITER $$
+CREATE TRIGGER trg_prevent_duplicate_medicacao
+BEFORE INSERT ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO WHERE NOME = NEW.NOME) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Medicamento já existe.';
+    END IF;
+END$$
+
+DELIMITER $$
+CREATE TRIGGER trg_update_cliente_medicacao
+AFTER UPDATE ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    UPDATE CLIENTE
+    SET ID_MEDICACAO = NEW.ID_MEDICACAO
+    WHERE ID_CLIENTE = NEW.ID_CLIENTE;
+END$$
+
+-- Criação do banco de dados
+CREATE DATABASE CLINICA_;
+USE CLINICA_;
+
+-- Criação da tabela MEDICACAO
+CREATE TABLE MEDICACAO(
+    ID_MEDICACAO INT PRIMARY KEY,
+    NOME VARCHAR(50),
+    VALOR FLOAT(10,2)
+);
+
+-- Criação da tabela CLIENTE
+CREATE TABLE CLIENTE(
+    ID_CLIENTE INT PRIMARY KEY,
+    NOME VARCHAR(50),
+    ID_MEDICACAO INT,
+    CONSTRAINT FK_MEDICAO FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO (ID_MEDICACAO)
+);
+
+-- Criação da tabela MEDICACAO_CLIENTE
+CREATE TABLE MEDICACAO_CLIENTE(
+    ID_MEDICACAO INT,
+    ID_CLIENTE INT,
+    PRIMARY KEY(ID_MEDICACAO, ID_CLIENTE),
+    CONSTRAINT FK_MEDICACOS FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO(ID_MEDICACAO),
+    CONSTRAINT FK_CLIENTES FOREIGN KEY (ID_CLIENTE) REFERENCES CLIENTE(ID_CLIENTE)
+);
+
+-- Definindo o delimitador para as triggers
+DELIMITER $$
+
+-- Trigger para Atualizar o Valor da Medicação
+CREATE TRIGGER trg_update_valor_medicacao
+AFTER INSERT ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    DECLARE total_valor FLOAT;
+
+    SELECT SUM(VALOR) INTO total_valor
+    FROM MEDICACAO
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+
+    UPDATE MEDICACAO
+    SET VALOR = total_valor
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+END$$
+
+-- Trigger para Impedir Exclusão de Cliente com Medicações Associadas
+CREATE TRIGGER trg_prevent_delete_cliente
+BEFORE DELETE ON CLIENTE
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO_CLIENTE WHERE ID_CLIENTE = OLD.ID_CLIENTE) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Não é possível excluir cliente com medicações associadas.';
+    END IF;
+END$$
+
+-- Trigger para Manter Registro de Mudanças em Medicamentos
+CREATE TABLE HISTORICO_MEDICACAO (
+    ID_HISTORICO INT PRIMARY KEY AUTO_INCREMENT,
+    ID_MEDICACAO INT,
+    NOME VARCHAR(50),
+    VALOR FLOAT(10,2),
+    DATA_HORA TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER trg_insert_historico_medicacao
+AFTER UPDATE ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    INSERT INTO HISTORICO_MEDICACAO (ID_MEDICACAO, NOME, VALOR)
+    VALUES (OLD.ID_MEDICACAO, OLD.NOME, OLD.VALOR);
+END$$
+
+-- Trigger para Verificação de Duplicidade na Inserção de Medicamentos
+CREATE TRIGGER trg_prevent_duplicate_medicacao
+BEFORE INSERT ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO WHERE NOME = NEW.NOME) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Medicamento já existe.';
+    END IF;
+END$$
+
+-- Trigger para Atualizar Informações de Cliente Quando a Medicação Muda
+CREATE TRIGGER trg_update_cliente_medicacao
+AFTER UPDATE ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    UPDATE CLIENTE
+    SET ID_MEDICACAO = NEW.ID_MEDICACAO
+    WHERE ID_CLIENTE = NEW.ID_CLIENTE;
+END$$
+
+-- Retornando ao delimitador padrão
+DELIMITER ;
+
+-- Procedures
+
+-- Procedure para Adicionar Nova Medicação
+DELIMITER $$
+
+CREATE PROCEDURE adicionar_medicacao(
+    IN p_nome VARCHAR(50),
+    IN p_valor FLOAT(10,2)
+)
+BEGIN
+    DECLARE novo_id INT;
+
+    -- Obter o próximo ID
+    SELECT IFNULL(MAX(ID_MEDICACAO), 0) + 1 INTO novo_id FROM MEDICACAO;
+
+    INSERT INTO MEDICACAO (ID_MEDICACAO, NOME, VALOR) VALUES (novo_id, p_nome, p_valor);
+END$$
+
+-- Procedure para Adicionar Novo Cliente
+CREATE PROCEDURE adicionar_cliente(
+    IN p_nome VARCHAR(50),
+    IN p_id_medicacao INT
+)
+BEGIN
+    DECLARE novo_id INT;
+
+    -- Obter o próximo ID
+    SELECT IFNULL(MAX(ID_CLIENTE), 0) + 1 INTO novo_id FROM CLIENTE;
+
+    INSERT INTO CLIENTE (ID_CLIENTE, NOME, ID_MEDICACAO) VALUES (novo_id, p_nome, p_id_medicacao);
+END$$
+
+-- Criação do banco de dados
+CREATE DATABASE CLINICA_;
+USE CLINICA_;
+
+-- Criação da tabela MEDICACAO
+CREATE TABLE MEDICACAO(
+    ID_MEDICACAO INT PRIMARY KEY,
+    NOME VARCHAR(50),
+    VALOR FLOAT(10,2)
+);
+
+-- Criação da tabela CLIENTE
+CREATE TABLE CLIENTE(
+    ID_CLIENTE INT PRIMARY KEY,
+    NOME VARCHAR(50),
+    ID_MEDICACAO INT,
+    CONSTRAINT FK_MEDICAO FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO (ID_MEDICACAO)
+);
+
+-- Criação da tabela MEDICACAO_CLIENTE
+CREATE TABLE MEDICACAO_CLIENTE(
+    ID_MEDICACAO INT,
+    ID_CLIENTE INT,
+    PRIMARY KEY(ID_MEDICACAO, ID_CLIENTE),
+    CONSTRAINT FK_MEDICACOS FOREIGN KEY (ID_MEDICACAO) REFERENCES MEDICACAO(ID_MEDICACAO),
+    CONSTRAINT FK_CLIENTES FOREIGN KEY (ID_CLIENTE) REFERENCES CLIENTE(ID_CLIENTE)
+);
+
+-- Definindo o delimitador para as triggers
+DELIMITER $$
+
+-- Trigger para Atualizar o Valor da Medicação
+CREATE TRIGGER trg_update_valor_medicacao
+AFTER INSERT ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    DECLARE total_valor FLOAT;
+
+    SELECT SUM(VALOR) INTO total_valor
+    FROM MEDICACAO
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+
+    UPDATE MEDICACAO
+    SET VALOR = total_valor
+    WHERE ID_MEDICACAO = NEW.ID_MEDICACAO;
+END$$
+
+-- Trigger para Impedir Exclusão de Cliente com Medicações Associadas
+CREATE TRIGGER trg_prevent_delete_cliente
+BEFORE DELETE ON CLIENTE
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO_CLIENTE WHERE ID_CLIENTE = OLD.ID_CLIENTE) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Não é possível excluir cliente com medicações associadas.';
+    END IF;
+END$$
+
+-- Trigger para Manter Registro de Mudanças em Medicamentos
+CREATE TABLE HISTORICO_MEDICACAO (
+    ID_HISTORICO INT PRIMARY KEY AUTO_INCREMENT,
+    ID_MEDICACAO INT,
+    NOME VARCHAR(50),
+    VALOR FLOAT(10,2),
+    DATA_HORA TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER trg_insert_historico_medicacao
+AFTER UPDATE ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    INSERT INTO HISTORICO_MEDICACAO (ID_MEDICACAO, NOME, VALOR)
+    VALUES (OLD.ID_MEDICACAO, OLD.NOME, OLD.VALOR);
+END$$
+
+-- Trigger para Verificação de Duplicidade na Inserção de Medicamentos
+CREATE TRIGGER trg_prevent_duplicate_medicacao
+BEFORE INSERT ON MEDICACAO
+FOR EACH ROW
+BEGIN
+    IF (SELECT COUNT(*) FROM MEDICACAO WHERE NOME = NEW.NOME) > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Medicamento já existe.';
+    END IF;
+END$$
+
+-- Trigger para Atualizar Informações de Cliente Quando a Medicação Muda
+CREATE TRIGGER trg_update_cliente_medicacao
+AFTER UPDATE ON MEDICACAO_CLIENTE
+FOR EACH ROW
+BEGIN
+    UPDATE CLIENTE
+    SET ID_MEDICACAO = NEW.ID_MEDICACAO
+    WHERE ID_CLIENTE = NEW.ID_CLIENTE;
+END$$
+
+-- Retornando ao delimitador padrão
+DELIMITER ;
+
+-- Procedures
+
+-- Procedure para Adicionar Nova Medicação
+DELIMITER $$
+
+CREATE PROCEDURE adicionar_medicacao(
+    IN p_nome VARCHAR(50),
+    IN p_valor FLOAT(10,2)
+)
+BEGIN
+    DECLARE novo_id INT;
+
+    -- Obter o próximo ID
+    SELECT IFNULL(MAX(ID_MEDICACAO), 0) + 1 INTO novo_id FROM MEDICACAO;
+
+    INSERT INTO MEDICACAO (ID_MEDICACAO, NOME, VALOR) VALUES (novo_id, p_nome, p_valor);
+END$$
+
+DELIMITER $$
+
+CREATE PROCEDURE adicionar_cliente(
+    IN p_nome VARCHAR(50),
+    IN p_id_medicacao INT
+)
+BEGIN
+    DECLARE novo_id INT;
+
+    -- Obter o próximo ID
+    SELECT IFNULL(MAX(ID_CLIENTE), 0) + 1 INTO novo_id FROM CLIENTE;
+
+    INSERT INTO CLIENTE (ID_CLIENTE, NOME, ID_MEDICACAO) VALUES (novo_id, p_nome, p_id_medicacao);
+END$$
+
+DELIMITER $$
+
+CREATE PROCEDURE associar_medicacao_cliente(
+    IN p_id_cliente INT,
+    IN p_id_medicacao INT
+)
+BEGIN
+    INSERT INTO MEDICACAO_CLIENTE (ID_CLIENTE, ID_MEDICACAO) VALUES (p_id_cliente, p_id_medicacao);
+END$$
+
+DELIMITER $$
+
+CREATE PROCEDURE remover_medicacao_cliente(
+    IN p_id_cliente INT,
+    IN p_id_medicacao INT
+)
+BEGIN
+    DELETE FROM MEDICACAO_CLIENTE 
+    WHERE ID_CLIENTE = p_id_cliente AND ID_MEDICACAO = p_id_medicacao;
+END$$
+
+DELIMITER $$
+
+CREATE PROCEDURE listar_medicamentos_cliente(
+    IN p_id_cliente INT
+)
+BEGIN
+    SELECT M.NOME, M.VALOR
+    FROM MEDICACAO M
+    JOIN MEDICACAO_CLIENTE MC ON M.ID_MEDICACAO = MC.ID_MEDICACAO
+    WHERE MC.ID_CLIENTE = p_id_cliente;
+END$$
+
+-- Retornando ao delimitador padrão
+DELIMITER ;
+
+
+
